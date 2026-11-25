@@ -1,0 +1,272 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Inventory Planning Calculator</title>
+    <style>
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, "segoe UI", Arial, sans-serif;
+            background: #f4f6f8;
+            color: #1c2530;
+            max-width: 600px;
+            margin: 40px auto;
+            padding: 0 20px;
+        }
+
+        h1 {
+            margin-bottom: 4px;
+        }
+
+        p {
+            color: #5b6776;
+            margin-top: 0;
+        }
+
+        .card {
+            background: white;
+            border: 1px solid #e1e5ea;
+            border-radius: 12px;
+            padding: 24px;
+            margin-bottom: 16px;
+        }
+
+        .card div {
+            margin-bottom: 16px;
+        }
+
+        .card label {
+            display: block;
+            font-size: 14px;
+            font-weight: 600;
+            margin-bottom: 6px;
+        }
+
+        .card input,
+        .card select {
+            width: 100%;
+            padding: 10px;
+            font-size: 15px;
+            border: 1px solid #ccd3db;
+            border-radius: 8px;
+        }
+
+        button {
+            width: 100%;
+            margin: 16px 0;
+            padding: 12px;
+            font-size: 16px;
+            font-weight: 600;
+            color: white;
+            background: #1f6feb;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+        }
+
+        button:hover {
+            background: #1858c4;
+        }
+
+        .card h2 {
+            margin-top: 0;
+        }
+
+        .results strong {
+            color: #1f6feb;
+            font-size: 18px;
+        }
+        .error {
+            color: #c62828;
+            font-weight: 600;
+        }
+    </style>
+</head>
+
+<body>
+    <h1>Inventory Planning Calculator</h1>
+    <p>Find out how much to order, when to reorder, and how much safety stock to keep.</p>
+    <div class="card">
+
+        <div>
+            <label for="demand">Annual demand (units)</label>
+            <input type="number" id="demand" value="12000">
+        </div>
+
+        <div>
+            <label for="orderCost">Cost per order ($)</label>
+            <input type="number" id="orderCost" value="75">
+        </div>
+
+        <div>
+            <label for="holdingCost">Holding cost ($ per unit per year)</label>
+            <input type="number" id="holdingCost" value="2.5">
+        </div>
+
+        <div>
+            <label for="leadTime">Lead time (days)</label>
+            <input type="number" id="leadTime" value="7">
+        </div>
+
+        <div>
+            <label for="daysPerYear">Days open per year</label>
+            <input type="number" id="daysPerYear" value="360">
+        </div>
+
+        <div>
+            <label for="demandSD">Daily demand variability (std. dev.)</label>
+            <input type="number" id="demandSD" value="8">
+        </div>
+
+        <div>
+            <label for="serviceLevel">Service Level</label>
+            <select id="serviceLevel">
+                <option value="1.28">90%</option>
+                <option value="1.65" selected>95%</option>
+                <option value="2.33">99%</option>
+            </select>
+        </div>
+    </div>
+    <button id="calcBtn">calculate</button>
+
+    <div class="card results">
+        <h2>Results</h2>
+        <p id="message" class="error"></p>
+        <p>Order quantity (EOQ): <strong id="eoq">-</strong> units</p>
+        <p>Reorder point: <strong id="reorderPoint">-</strong> units</p>
+        <p>Safety stock: <strong id="safetyStock">-</strong> units</p>
+    </div>
+    <div class="card">
+        <h2>Inventory over time</h2>
+        <canvas id="inventoryChart"></canvas> 
+    </div>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+    const calcBtn = document.getElementById('calcBtn');
+    let chart;
+
+    function calculate() {
+        const demand = parseFloat(document.getElementById('demand').value);
+        const orderCost = parseFloat(document.getElementById('orderCost').value);
+        const holdingCost = parseFloat(document.getElementById('holdingCost').value);
+        const leadTime = parseFloat(document.getElementById('leadTime').value);
+        const daysPerYear = parseFloat(document.getElementById('daysPerYear').value);
+        const demandSD = parseFloat(document.getElementById('demandSD').value);
+       const z = Number(document.getElementById('serviceLevel').value);
+
+       // Check the inputs before doing any math
+       let error = "";
+
+       if (isNaN(demand) || isNaN(orderCost) || isNaN(holdingCost) || isNaN(leadTime) || isNaN(daysPerYear) || isNaN(demandSD)) {
+        error = "Please fill in every box.";
+       } else if (demand <= 0 || orderCost <= 0 || holdingCost <= 0 || daysPerYear <= 0 ) {
+        error = "Demand, costs and days open must be more than 0.";
+       } else if (leadTime <0 || demandSD < 0) {
+        error = "Lead time and demand variability can't be negative.";
+       }
+
+       document.getElementById("message").textContent = error;
+
+       if (error) {
+        document.getElementById("eoq").textContent = "-";
+        document.getElementById("safetyStock").textContent = "-";
+        document.getElementById("reorderPoint").textContent = "-";
+        return;
+       }
+
+    // Daily demand
+    const dailyDemand = demand / daysPerYear;
+
+    // EOQ = square root of (2 * demand * order cost / holding cost)
+    const eoq = Math.sqrt((2 * demand * orderCost)/ holdingCost)
+
+    //Saftey stock = Z * std. dev. x square root of lead time 
+    const safteyStock = z * demandSD * Math.sqrt(leadTime);
+
+    // reorder point = (daily demand * lead time) + saftey stock
+    const reorderPoint = (dailyDemand * leadTime) + safteyStock;
+
+    // Show the results on the page 
+    document.getElementById("eoq").textContent = Math.round(eoq);
+    document.getElementById("safetyStock").textContent = Math.round(safteyStock);
+    document.getElementById("reorderPoint").textContent = Math.round(reorderPoint);
+
+    // Build the sawtooth points
+    const cycleDays = eoq / dailyDemand;  // days between orders
+    const peak = safteyStock +eoq;   // stock right after an order arrives
+    const points = [];
+
+    for (let i = 0; i< 4; i++) {
+        const start = i * cycleDays;
+        points.push({ x: start, y: peak});
+        points.push({ x: start + cycleDays, y: safteyStock });
+    }
+
+    drawChart (points, reorderPoint, safteyStock, cycleDays * 4);
+    }
+
+    function drawChart(points, reorderPoint, safteyStock, endDay) {
+        const data = {
+            datasets: [
+                {
+                    label: "Stock on hand",
+                    data: points,
+                    borderColor: "#1f6feb",
+                    borderWidth: 2,
+                    pointRadius: 0
+                },
+                {
+                    label: "Reorder point",
+                    data: [{ x: 0, y: reorderPoint }, { x: endDay, y: reorderPoint }],
+                    borderColor: "#b26a00",
+                    borderDash: [6, 4],
+                    borderWidth: 1.5,
+                    pointRadius: 0
+                },
+                {
+                    label: "Safety stock",
+                    data: [{ x: 0, y: safteyStock }, { x: endDay, y: safteyStock }],
+                    borderColor: "#c62828",
+                    borderDash: [2, 4],
+                    borderWidth: 1.5,
+                    pointRadius: 0
+                }
+            ]
+        };
+        const options = {
+            animation: false,
+            scales: {
+                x: { type: "linear", max: Math.ceil(endDay), title: { display: true, text: "days"}},
+                y: { beginAtZero: true, title: { display: true, text: "Units" }}
+            }
+        };
+
+        if (chart) {
+            chart.destroy();
+        }
+
+        chart = new Chart(document.getElementById("inventoryChart"), {
+            type: "line",
+            data: data,
+            options: options
+        });
+    }
+    // Run when the button is clicked 
+    calcBtn.addEventListener("click", calculate);
+
+    // Run whenever any box or the dropdown changes
+    document.querySelectorAll("input, select").forEach(function (box) {
+        box.addEventListener("input", calculate);
+    });
+    // Run once when the page first loads
+    calculate();
+</script>
+
+</body>
+
+</html>
